@@ -50,11 +50,28 @@ def run_cli(args):
             print("ok")
         except engines.EngineError as e:
             failed += 1
+            page.error = str(e)
             print(f"failed: {e}")
+        # v1.1 fix: pehle sirf EngineError pakadte the; koi aur galti (toota
+        # PDF page, anjaan bug) poora batch crash kar deti thi. Ab wo page
+        # fail maana jaata hai aur baaki chalte rehte hain, jaise GUI mein.
+        except Exception as e:  # noqa: BLE001
+            failed += 1
+            page.error = f"Unexpected problem: {e}"
+            print(f"failed: {page.error}")
 
-    out = build_document([p for p in pages if p.text], args.output,
-                         include_scans=args.include_scans)
+    # v1.1 fix: saare pages fail hue toh khaali Word file banane ka koi matlab
+    # nahi; pehle ye chupchaap ban jaati thi aur user sochta ki kaam ho gaya.
+    if failed == len(pages):
+        print("Nothing could be read, so no Word file was saved.")
+        return 3
+
+    # v1.1 fix: fail hue pages ab gayab nahi hote. build_document() unki jagah
+    # ek note likhta hai (docx_writer ka Page.error), taaki page kram bana rahe.
+    out = build_document(pages, args.output, include_scans=args.include_scans)
     print(f"Saved: {out}")
+    if failed:
+        print(f"{failed} of {len(pages)} pages could not be read; they are marked in the file.")
     return 0 if not failed else 3
 
 

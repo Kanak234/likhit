@@ -19,7 +19,7 @@ You need Python 3.10 or newer.
 **Windows:** double-click `run.bat`.
 **Linux / macOS:** open a terminal in this folder and run `./run.sh`.
 
-The first run creates a private Python environment and installs four packages, so it needs internet once. After that the app starts straight away, even offline.
+The first run creates a private Python environment and installs five packages, so it needs internet once. After that the app starts straight away, even offline. If that first setup gets cut off, just run it again; it picks up where it failed.
 
 On Linux you may also need Tkinter: `sudo apt install python3-tk` (Debian/Ubuntu) or `sudo dnf install python3-tkinter` (Fedora).
 
@@ -27,7 +27,7 @@ On Linux you may also need Tkinter: `sudo apt install python3-tk` (Debian/Ubuntu
 
 You only need one of these, but you can have all three.
 
-**Cloud AI:** open Settings, choose a provider, paste your key. Leave "Model" empty to use the default, or type a model name if you want a specific one. The key is saved only on your computer.
+**Cloud AI:** open Settings, choose a provider, paste your key. Leave "Model" empty to use the default, or type a model name if you want a specific one. The key is saved only on your computer, in the system's password store (Credential Manager, Keychain, or Secret Service on Linux) when one is available. In Auto mode, if the key doesn't work at the moment (for example no internet), Likhit reads the pages with your local model or Tesseract instead and tells you.
 
 **Local LLM (Ollama):** install Ollama from ollama.com, then pull a model that can see images:
 
@@ -97,6 +97,8 @@ The tests use small fake servers in place of OpenAI and Ollama, so they don't ne
 | "No local model" in the top bar | Ollama isn't running, or you only have text models. Pull a vision model. |
 | Can't save the Word file | It's open in Word. Close it and save again. |
 | PDFs don't show up in the file picker | Install PyMuPDF: `pip install pymupdf` |
+| "Switched reading method" message | The first method failed (often no internet). The pages were read with the next one. |
+| Tesseract says language data may be missing | Install the language pack (for example `tesseract-ocr-hin`) or change the OCR language in Settings. |
 
 ## Project layout
 

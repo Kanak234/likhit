@@ -36,6 +36,25 @@ class Page:
     image: object          # PIL Image
     text: str = ""
     engine_label: str = ""  # kis engine ne padha, sirf status ke liye
+    # v1.1: page padhne mein fail hua toh wajah yahan. Word file mein us page
+    # ki jagah ek note aata hai, taaki page gayab na ho aur kram na bigde.
+    error: str = ""
+
+
+NO_TEXT = "[no text found]"
+
+
+# ---------------------------------------------------------------------------
+# Grey, italic note: khaali ya fail hue page ki jagah.
+# Why: pehle "[no text found]" jaisa marker text seedha Word mein chhap jaata
+# tha, jo asli likhaai jaisa lagta tha. Note saaf dikhata hai ki ye Likhit
+# ka sandesh hai, user ka likha hua nahi.
+# ---------------------------------------------------------------------------
+def _add_note(doc, text):
+    run = doc.add_paragraph().add_run(text)
+    run.italic = True
+    run.font.size = Pt(9)
+    run.font.color.rgb = RGBColor(0x6B, 0x72, 0x80)
 
 
 # ---------------------------------------------------------------------------
@@ -78,12 +97,14 @@ def _write_text(doc, text):
         if not line:
             flush()
             continue
-        if line.startswith("## "):
+        heading = re.match(r"^(#{1,6})\s+(.*)$", line)
+        if heading:
+            # v1.1 fix: pehle sirf "# " aur "## " pehchaane jaate the; "### "
+            # hashes ke saath saada text ban jaata tha. Ab 1 se 6 tak sab
+            # Word ke Heading 1-6 ban jaate hain.
             flush()
-            _add_inline(doc.add_heading(level=2), line[3:].strip())
-        elif line.startswith("# "):
-            flush()
-            _add_inline(doc.add_heading(level=1), line[2:].strip())
+            level = len(heading.group(1))
+            _add_inline(doc.add_heading(level=level), heading.group(2).strip())
         elif re.match(r"^[-*•]\s+", line):
             flush()
             _add_inline(doc.add_paragraph(style="List Bullet"),
@@ -165,7 +186,13 @@ def build_document(pages, out_path, include_scans=False, page_breaks=True,
     for i, page in enumerate(pages):
         if i > 0 and page_breaks:
             doc.add_paragraph().add_run().add_break(WD_BREAK.PAGE)
-        _write_text(doc, page.text or "")
+        # v1.1: teen haalat -> fail hua page, khaali page, ya asli text
+        if page.error and not (page.text or "").strip():
+            _add_note(doc, f"This page could not be read ({page.name}): {page.error}")
+        elif (page.text or "").strip() == NO_TEXT:
+            _add_note(doc, f"No handwriting was found on this page ({page.name}).")
+        else:
+            _write_text(doc, page.text or "")
 
         if include_scans and page.image is not None:
             cap = doc.add_paragraph()

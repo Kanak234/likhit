@@ -400,6 +400,7 @@ class LikhitApp:
             c.create_text(w / 2, h / 2 + 14, fill=MUTED, font=_ui_font(10),
                           text="Click “+ Add photos” and pick photos of your notes.")
             return
+        # copy() se asli PIL Image milti hai, LazyPdfPage (v1.1) ho tab bhi
         img = self.pages[self.current].image.copy()
         img.thumbnail((w - 16, h - 16), Image.LANCZOS)
         self._preview_img = ImageTk.PhotoImage(img)
@@ -499,6 +500,12 @@ class LikhitApp:
                     self.events.put(("page_error", (page, str(e))))
                 except Exception as e:  # noqa: BLE001
                     self.events.put(("page_error", (page, f"Unexpected problem: {e}")))
+            # v1.1: Auto mode mein koi engine beech mein fail hokar chhoda gaya
+            # (jaise net band tha toh cloud), toh user ko ek baar bata do ki
+            # baaki pages kisne padhe. Normal engine par notes hota hi nahi.
+            notes = getattr(engine, "notes", [])
+            if notes:
+                self.events.put(("fallback", notes))
             self.events.put(("done", len(jobs)))
 
         threading.Thread(target=work, daemon=True).start()
@@ -522,11 +529,18 @@ class LikhitApp:
                     self.progress_label.configure(text=f"Reading {done + 1} of {total}: {name}")
                 elif kind == "page":
                     page, text, label = data
-                    page.text, page.engine_label = text, label
+                    # error="" : pichhli baar fail hua tha, ab padh liya
+                    page.text, page.engine_label, page.error = text, label, ""
                     self._after_page_change(page)
                 elif kind == "page_error":
                     page, msg = data
+                    # v1.1: wajah page par bhi rakho; Word file mein is page ki
+                    # jagah note aayega (docx_writer), page gayab nahi hoga
+                    page.error = msg
                     errors.append(f"{page.name}: {msg}")
+                elif kind == "fallback":
+                    messagebox.showinfo("Switched reading method", "\n\n".join(data),
+                                        parent=self.root)
                 elif kind == "fatal":
                     self._finish_reading()
                     self.progress_label.configure(text="")

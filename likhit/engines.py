@@ -16,6 +16,7 @@ Flow: ui.py / main.py -> choose_engine(settings) -> engine.recognize(image)
 import json
 import re
 import shutil
+from concurrent.futures import ThreadPoolExecutor
 import urllib.error
 import urllib.request
 
@@ -83,7 +84,18 @@ def _http_json(url, payload=None, headers=None, timeout=REQUEST_TIMEOUT):
                                  method="POST" if data else "GET")
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
-            return json.loads(resp.read().decode("utf-8"))
+            raw = resp.read()
+        # v1.1 fix: pehle json.loads seedha yahan tha, aur agar port par koi
+        # aur program HTML ya kachra lautata (proxy page, dusra server), toh
+        # JSONDecodeError bina pakde upar jaata aur detection/CLI crash hota.
+        # Ab wo bhi EngineError hai, jise baaki code pehle se sambhalta hai.
+        try:
+            return json.loads(raw.decode("utf-8"))
+        except ValueError as e:  # JSONDecodeError aur UnicodeDecodeError dono ValueError hain
+            raise EngineError(
+                f"The server at {url.split('/')[2]} didn't answer in the expected format. "
+                "Another program may be using that port."
+            ) from e
     except urllib.error.HTTPError as e:
         body = e.read().decode("utf-8", "replace")[:300]
         if e.code in (401, 403):
@@ -95,6 +107,11 @@ def _http_json(url, payload=None, headers=None, timeout=REQUEST_TIMEOUT):
         raise EngineError(f"Couldn't reach the server: {e.reason}") from e
     except TimeoutError as e:
         raise EngineError("The server took too long to answer.") from e
+    # v1.1 fix: connection beech mein toot jaaye (ConnectionResetError, wifi
+    # gaya) toh ye URLError nahi, seedha OSError aata hai. Isse bhi saaf
+    # message banao, stack trace nahi. Flow: engine -> ChainEngine agla try karega.
+    except OSError as e:
+        raise EngineError(f"The connection dropped: {e}") from e
 
 
 # ---------------------------------------------------------------------------
@@ -217,34 +234,71 @@ def detect_ollama(url) -> list[str]:
         tags = _http_json(f"{url.rstrip('/')}/api/tags", timeout=DETECT_TIMEOUT)
     except EngineError:
         return []
-    vision = []
-    for m in tags.get("models", []):
-        name = m.get("name", "")
-        caps = None
+    names = [m.get("name", "") for m in tags.get("models", []) if m.get("name")]
+
+    # Ek model ki jaanch: vision hai ya nahi.
+    # Why alag function: niche ThreadPoolExecutor ise har model par ek saath
+    # chalata hai.
+    def is_vision(name):
         try:
             info = _http_json(f"{url.rstrip('/')}/api/show", {"model": name},
                               timeout=DETECT_TIMEOUT)
             caps = info.get("capabilities")
         except EngineError:
-            pass
+            caps = None
         if caps is not None:
-            if "vision" in caps:
-                vision.append(name)
-        elif any(h in name.lower() for h in VISION_NAME_HINTS):
-            vision.append(name)
-    return vision
+            return "vision" in caps
+        # Purana Ollama capabilities nahi batata -> naam se andaaza
+        return any(h in name.lower() for h in VISION_NAME_HINTS)
+
+    # v1.1 fix: pehle har model ke liye /api/show ek-ek karke chalta tha, har
+    # ek par 1.5s timeout. 10 models = 15s tak ruk sakta tha, jabki PRD 2s
+    # mein status maangta hai. Ab saare ek saath (max 8 threads) chalte hain.
+    # map() order bachaata hai, isliye list ka kram Ollama jaisa hi rehta hai.
+    if not names:
+        return []
+    with ThreadPoolExecutor(max_workers=min(8, len(names))) as pool:
+        flags = list(pool.map(is_vision, names))
+    return [n for n, ok in zip(names, flags) if ok]
+
+
+# Embedding models text ko numbers mein badalte hain; ye na photo dekh sakte
+# hain na text likh sakte hain. Inhe kabhi nahi chunna.
+EMBEDDING_NAME_HINTS = ("embed", "bge-", "e5-", "gte-", "minilm", "rerank")
 
 
 def detect_lmstudio(url) -> list[str]:
     """
-    LM Studio ka local server OpenAI jaisa hai. Ye nahi batata ki model
-    vision wala hai ya nahi, isliye jo loaded hai wahi lautate hain.
+    LM Studio ke vision models ki list, sabse bharosemand pehle.
+
+    v1.1 fix: pehle /v1/models ka har model lautate the, embedding aur
+    text-only models bhi. Agar wo list mein pehle hota toh wahi chun liya
+    jaata aur ya toh error aata ya bekaar text.
+
+    Ab do raaste:
+      1. Naya LM Studio /api/v0/models par har model ka "type" batata hai
+         ("vlm" = vision). Ye mile toh sirf wahi lo, andaaza nahi.
+      2. Purana LM Studio: /v1/models se lo, embedding models hatao, aur
+         jinke naam se vision lagta hai unhe aage rakho.
+    Flow: detect_all() -> choose_engine() list ka pehla model chunta hai.
     """
+    base = url.rstrip("/")
     try:
-        data = _http_json(f"{url.rstrip('/')}/v1/models", timeout=DETECT_TIMEOUT)
+        rich = _http_json(f"{base}/api/v0/models", timeout=DETECT_TIMEOUT)
+        models = rich.get("data", [])
+        if models and all("type" in m for m in models):
+            return [m["id"] for m in models if m.get("type") == "vlm" and m.get("id")]
+    except EngineError:
+        pass  # purana version, raasta 2 par chalo
+
+    try:
+        data = _http_json(f"{base}/v1/models", timeout=DETECT_TIMEOUT)
     except EngineError:
         return []
-    return [m.get("id", "") for m in data.get("data", []) if m.get("id")]
+    ids = [m.get("id", "") for m in data.get("data", []) if m.get("id")]
+    ids = [i for i in ids if not any(h in i.lower() for h in EMBEDDING_NAME_HINTS)]
+    # sorted() stable hai: vision-naam wale aage, baaki apne kram mein peeche
+    return sorted(ids, key=lambda i: not any(h in i.lower() for h in VISION_NAME_HINTS))
 
 
 class OllamaEngine:
@@ -321,8 +375,19 @@ class TesseractEngine:
     def recognize(self, img) -> str:
         # psm 4 = "ek column ka text, alag-alag size ki lines". Notebook ke
         # page ke liye ye default (psm 3) se behtar chalta hai.
-        raw = self._pt.image_to_string(imaging.for_ocr(img), lang=self.lang,
-                                       config="--psm 4")
+        # v1.1 fix: galat language (jaise "hin" ka data install nahi) ya toota
+        # Tesseract pytesseract.TesseractError deta tha. GUI use pakad leta tha,
+        # par terminal mode crash hota tha. Ab ye EngineError hai, sab jagah
+        # ek jaisa saaf message.
+        try:
+            raw = self._pt.image_to_string(imaging.for_ocr(img), lang=self.lang,
+                                           config="--psm 4")
+        except (self._pt.TesseractError, OSError) as e:
+            hint = ""
+            if "language" in str(e).lower() or "traineddata" in str(e).lower():
+                hint = (f" The language data for '{self.lang}' may be missing; "
+                        "install it or change the OCR language in Settings.")
+            raise EngineError(f"Tesseract couldn't read this page.{hint} ({e})") from e
         # Tesseract har line alag deta hai; paragraph ke andar ki lines ko
         # jod dete hain, khaali line ko paragraph ka ant maante hain.
         paragraphs, current = [], []
@@ -346,12 +411,71 @@ def detect_all(settings) -> dict:
     Flow: ui.py startup par ise background thread mein chalata hai aur top
     bar mein status dikhata hai; choose_engine() bhi isi ka use karta hai.
     """
-    return {
-        "cloud": bool(settings.effective_api_key()),
-        "ollama": detect_ollama(settings.ollama_url),
-        "lmstudio": detect_lmstudio(settings.lmstudio_url),
-        "tesseract": find_tesseract(settings.tesseract_path),
-    }
+    # v1.1: Ollama, LM Studio aur Tesseract ki jaanch ek doosre par nirbhar
+    # nahi, isliye teeno ek saath. Kul samay = sabse dheemi jaanch, jod nahi.
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        ollama = pool.submit(detect_ollama, settings.ollama_url)
+        lms = pool.submit(detect_lmstudio, settings.lmstudio_url)
+        tess = pool.submit(find_tesseract, settings.tesseract_path)
+        return {
+            "cloud": bool(settings.effective_api_key()),
+            "ollama": ollama.result(),
+            "lmstudio": lms.result(),
+            "tesseract": tess.result(),
+        }
+
+
+# ===========================================================================
+# Auto mode ka fallback engine
+# ===========================================================================
+class ChainEngine:
+    """
+    Kai engines ki line, requirement wale kram mein (cloud -> local -> offline).
+
+    v1.1 fix: pehle Auto mode sirf dekhta tha ki API key saved hai ya nahi.
+    Key saved ho aur internet band ho, toh har page fail hota, jabki local
+    LLM ya Tesseract taiyaar baitha tha. Ab ek page par cloud fail ho toh
+    usi page ko agle engine se padhte hain.
+
+    "Sticky" kyun: agar cloud ek baar fail hua (net band / key galat), toh
+    baaki pages par use dobara try karke har page par timeout ka intezaar
+    nahi karwaate. Is run ke liye wo engine band.
+
+    Flow: choose_engine("auto") ise lautata hai; ui.py aur main.py ke liye
+    ye bilkul ek normal engine jaisa hai (label, kind, recognize).
+    """
+
+    def __init__(self, engines_in_order):
+        self._engines = list(engines_in_order)
+        self._dead = set()          # is run mein fail ho chuke engines ke index
+        self._used = self._engines[0]
+        self.notes = []             # kis engine ko kyun chhoda, user ko dikhane ke liye
+
+    @property
+    def kind(self):
+        return self._used.kind
+
+    @property
+    def label(self):
+        # Jis engine ne pichhla page padha, wahi dikhao
+        return self._used.label
+
+    def recognize(self, img) -> str:
+        errors = []
+        for i, engine in enumerate(self._engines):
+            if i in self._dead:
+                continue
+            try:
+                text = engine.recognize(img)
+                self._used = engine
+                return text
+            except EngineError as e:
+                self._dead.add(i)
+                note = f"{engine.label} failed ({e}); trying the next method."
+                self.notes.append(note)
+                errors.append(f"{engine.label}: {e}")
+        raise EngineError("Every reading method failed for this page.\n- "
+                          + "\n- ".join(errors or ["no method left to try"]))
 
 
 def choose_engine(settings, mode=None, found=None):
@@ -404,11 +528,14 @@ def choose_engine(settings, mode=None, found=None):
     if mode == "offline":
         return make_offline()
 
-    # Auto: requirement wala order. Har step fail ho toh agla try.
-    reasons = []
+    # Auto: requirement wala order. Jo-jo taiyaar hai sab line mein lagao;
+    # ChainEngine page padhte waqt fail hone par agla chalayega (v1.1).
+    ready, reasons = [], []
     for maker in (make_cloud, make_local, make_offline):
         try:
-            return maker()
+            ready.append(maker())
         except EngineError as e:
             reasons.append(str(e))
-    raise EngineError("No reading method is ready yet.\n- " + "\n- ".join(reasons))
+    if not ready:
+        raise EngineError("No reading method is ready yet.\n- " + "\n- ".join(reasons))
+    return ready[0] if len(ready) == 1 else ChainEngine(ready)

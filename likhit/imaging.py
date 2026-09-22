@@ -12,6 +12,7 @@ PIL Image -> engines.py mein to_base64_jpeg() ya for_ocr() se jaata hai.
 
 import base64
 import io
+from functools import lru_cache
 from pathlib import Path
 
 from PIL import Image, ImageFilter, ImageOps
@@ -46,15 +47,14 @@ def load_pages(path: str) -> list[tuple[str, Image.Image]]:
             raise ValueError(
                 "Opening PDFs needs PyMuPDF. Run: pip install pymupdf"
             )
-        pages = []
+        # v1.1 fix: pehle saare pages turant 200 DPI par render hokar RAM mein
+        # rakhe jaate the. A4 ka ek page ~11 MB, toh 100 page ka PDF ~1 GB.
+        # Ab sirf page count padhte hain; har page ek LazyPdfPage hai jo tab
+        # render hota hai jab koi use sach mein dekhe (preview, AI, Word).
         with fitz.open(p) as doc:
-            for i, page in enumerate(doc, start=1):
-                # 200 DPI: handwriting ke liye kaafi saaf, par file bahut
-                # bhari bhi nahi
-                pix = page.get_pixmap(dpi=200)
-                img = Image.open(io.BytesIO(pix.tobytes("png")))
-                pages.append((f"{p.stem} - page {i}", img.convert("RGB")))
-        return pages
+            count = doc.page_count
+        resolved = str(p.resolve())
+        return [(f"{p.stem} - page {i + 1}", LazyPdfPage(resolved, i)) for i in range(count)]
 
     if ext in IMAGE_TYPES:
         img = Image.open(p)
@@ -64,6 +64,53 @@ def load_pages(path: str) -> list[tuple[str, Image.Image]]:
         return [(p.stem, img.convert("RGB"))]
 
     raise ValueError(f"This file type isn't supported: {ext}")
+
+
+# ---------------------------------------------------------------------------
+# PDF page ko zaroorat par render karna.
+# Why lru_cache(maxsize=4): user ek page dekh raha ho toh preview baar-baar
+# redraw hota hai (window resize par). Har baar PDF render karna dheema hoga.
+# Pichhle 4 page yaad rakhte hain: preview + reading thread dono tez, aur RAM
+# 4 page tak hi seemit (~45 MB), chahe PDF kitna bhi bada ho.
+# Flow: LazyPdfPage ka koi bhi attribute chhua -> _render_pdf_page().
+# ---------------------------------------------------------------------------
+@lru_cache(maxsize=4)
+def _render_pdf_page(path: str, index: int) -> Image.Image:
+    with fitz.open(path) as doc:
+        # 200 DPI: handwriting ke liye kaafi saaf, par bahut bhaari bhi nahi
+        pix = doc[index].get_pixmap(dpi=200)
+    return Image.open(io.BytesIO(pix.tobytes("png"))).convert("RGB")
+
+
+class LazyPdfPage:
+    """
+    PIL Image jaisa dikhne wala chhota object. Iska koi bhi attribute ya
+    method (size, copy(), convert()...) maango, ye page render karke asli
+    Image ko de deta hai.
+
+    Why proxy aur naya API nahi: ui.py, engines.py aur docx_writer.py sab
+    page.image ko PIL Image ki tarah use karte hain. Proxy se unmein ek line
+    bhi nahi badalni padi, aur photo wale pages pehle jaise hi chalte hain.
+    Jo functions asli Image maangte hain (ImageTk, ImageOps) unhe
+    as_pil_image() se asli milta hai.
+    """
+
+    def __init__(self, path: str, index: int):
+        self.path = path
+        self.index = index
+
+    def render(self) -> Image.Image:
+        return _render_pdf_page(self.path, self.index)
+
+    def __getattr__(self, name):
+        # Sirf tab chalta hai jab attribute is object par nahi mila
+        return getattr(self.render(), name)
+
+
+def as_pil_image(img) -> Image.Image:
+    """LazyPdfPage ho toh asli Image do, warna jo mila wahi. Flow: ImageOps /
+    ImageTk jaise functions se pehle, jo type check karte hain."""
+    return img.render() if isinstance(img, LazyPdfPage) else img
 
 
 # ---------------------------------------------------------------------------
@@ -90,11 +137,17 @@ def to_base64_jpeg(img: Image.Image, max_side: int = 2000) -> str:
 # Flow: engines.TesseractEngine.
 # ---------------------------------------------------------------------------
 def for_ocr(img: Image.Image) -> Image.Image:
-    im = ImageOps.grayscale(img)
+    im = ImageOps.grayscale(as_pil_image(img))
     if max(im.size) < 1600:
         scale = 1600 / max(im.size)
         im = im.resize((int(im.width * scale), int(im.height * scale)), Image.LANCZOS)
-    im = ImageOps.autocontrast(im, cutoff=2)
+    # v1.1 fix: pehle cutoff=2 tha, jo DONO taraf ke 2% pixels kaatta tha.
+    # Jis page par syahi 2% se kam ho (ek-do line, sirf heading, khaali
+    # jagah zyada) wahan gehre 2% mein syahi hi aa jaati thi, aur wo safed
+    # ho kar mit jaati thi -> Tesseract ko khaali page, "[no text found]".
+    # (0, 2): gehra (syahi) wala end bilkul nahi kaatte, sirf chamakdar
+    # 2% (kaagaz ki parchhai, halka grey) kaat kar kaagaz ko safed karte hain.
+    im = ImageOps.autocontrast(im, cutoff=(0, 2))
     im = im.filter(ImageFilter.SHARPEN)
     return im
 

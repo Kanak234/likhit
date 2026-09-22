@@ -1,6 +1,6 @@
 # Likhit: Product Requirements
 
-**Owner:** Kanak Prabhakar · **Version:** 1.0 · **Status:** built and tested
+**Owner:** Kanak Prabhakar · **Version:** 1.1 · **Status:** built and tested
 
 ## The problem
 
@@ -59,17 +59,23 @@ It should work with whatever the user has:
 - On start, the top bar shows what's available (key, local model name, Tesseract) within about two seconds.
 - "Read handwriting" only reads pages that don't have text yet. If every page already has text, it asks before overwriting edits.
 - If a single page fails (network drop, timeout), the others still finish, and the user sees which page failed and why.
+- In Auto mode, if a method fails while reading (for example a saved key but no internet), that page is read again with the next ready method, and the failed method is skipped for the rest of the run. The user is told once which method took over. A method chosen by hand still never falls back.
+- A page that could not be read keeps its place in the Word file as a short grey note, so the page order stays correct.
 - If no method is available, the message lists all three reasons and what to do about each.
 - Photos are rotated using their EXIF data, so sideways phone photos read correctly.
 - Save asks for a location, remembers the folder, and offers to open the file.
 
 ## Edge cases
 
-- Blank or unreadable page: the text becomes `[no text found]`.
+- Blank or unreadable page: the text becomes `[no text found]` in the window; in the Word file it becomes a grey note, not body text.
+- Page with very little writing (one line, just a heading): the offline OCR must still read it.
+- A local server that answers with something other than JSON (another program on that port): treated as "not available", never a crash.
+- Very large PDFs: pages are rendered only when needed, so memory stays flat however many pages there are.
+- Terminal mode where every page fails: no Word file is written, and the exit code says so.
 - Very large photos are shrunk before sending, to keep uploads quick and cheap.
 - The Word file is open in Word while saving: clear message, nothing lost.
 - A wrong or expired API key: clear message, not a stack trace.
-- Only text-only local models installed (for example `llama3`): they are skipped, because they cannot see images.
+- Only text-only local models installed (for example `llama3`): they are skipped, because they cannot see images. Embedding models in LM Studio are skipped too.
 
 ## Acceptance criteria
 
@@ -78,4 +84,6 @@ It should work with whatever the user has:
 - [x] Produces a .docx that opens in Word and LibreOffice, with headings and lists styled properly.
 - [x] Every page header in the Word file carries the KP logo.
 - [x] Works offline after first setup (local LLM or Tesseract).
-- [x] Automated tests pass.
+- [x] Automated tests pass (31 in v1.1).
+- [x] v1.1: saved key with no internet still reads pages in Auto mode (falls back).
+- [x] v1.1: the API key is kept in the system's secure store when one is available.
