@@ -1,0 +1,3 @@
+# Verification Artifacts
+
+Chromium shift was evaluated and not needed because Likhit is already a native cross-platform desktop app (Tkinter). The evaluation confirmed: GUI is Tkinter (`likhit/ui.py`), entry point is `main.py`, cross-platform launchers exist (`run.sh`/`run.bat`), standalone builds work via `build_app.py` (PyInstaller), and three reading engines are implemented (cloud AI, local LLM via Ollama/LM Studio, Tesseract OCR fallback). No Electron/Chromium work was performed.

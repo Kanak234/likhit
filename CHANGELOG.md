@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+**Repo hygiene**
+- Moved verification artifacts (`HANDOFF.md`, `VERIFY.md`, `docs/chromium/`) into `docs/verification/`
+- Updated `.gitignore` with standard Python/build patterns
+- Added "Verified" section to README with test command and tesseract install note
+
 ## 1.1.0 (2026-09-23)
 
 Fixes from the code review. Nothing in how you use the app changed.

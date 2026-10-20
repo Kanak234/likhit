@@ -1,5 +1,35 @@
-.venv/
+# Likhit .gitignore
+
+# Python
 __pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+env/
+
+# Build artifacts
 build/
 dist/
 *.spec
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test cache
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Environment
+.env
+.env.*
+!.env.example

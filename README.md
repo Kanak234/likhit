@@ -115,4 +115,12 @@ tests/               automated tests
 
 ---
 
+## Verified
+
+- **Test command:** `python -m pytest tests -q` (or `python -m unittest discover -s tests -v`)
+- **Result:** 31 tests pass (needs `tesseract-ocr` for the offline OCR tests)
+- **Install Tesseract on Debian/Ubuntu:** `sudo apt install tesseract-ocr`
+
+---
+
 Made by **Kanak Prabhakar** · [kanakprabhakar.online](https://kanakprabhakar.online) · GitHub [@Kanak234](https://github.com/Kanak234)
