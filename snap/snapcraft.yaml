@@ -23,8 +23,6 @@ grade: stable
 
 # The app uses the GNOME extension for GTK theme integration and proper
 # desktop integration. This also helps with Tkinter display on Wayland/X11.
-extensions: [gnome]
-
 # Architecture: run on amd64 and arm64. core24 uses "platforms:" not "architectures:".
 platforms:
   amd64:
@@ -98,6 +96,10 @@ apps:
     # WHAT: python from the python-plugin venv + main.py from $SNAP/app.
     # WHERE: $SNAP/app/main.py -> likhit package in $SNAP/app -> $SNAP/app/assets.
     command: bin/python3 $SNAP/app/main.py
+    # WHY: snapcraft only allows "extensions" per app (top-level gave "extra inputs are not permitted").
+    # WHAT: gnome extension = GTK/desktop libs, fonts, themes, display access for the Tk window.
+    # WHERE: applies to this app's runtime environment.
+    extensions: [gnome]
     # The gnome extension provides desktop, wayland, x11, and other common plugs.
     # We add additional plugs for the app's specific needs:
     plugs:
