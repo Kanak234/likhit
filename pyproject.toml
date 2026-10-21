@@ -1,0 +1,57 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "likhit"
+version = "1.1.0"
+description = "Turn handwritten pages into a Word document"
+readme = "README.md"
+license = {text = "GPL-3.0-or-later"}
+authors = [
+    {name = "Kanak Prabhakar", email = "kanakprabhakar72@gmail.com"}
+]
+requires-python = ">=3.10"
+dependencies = [
+    "python-docx>=1.1",
+    "Pillow>=10.0",
+    "pytesseract>=0.3.10",
+    "pymupdf==1.28.2",
+    "keyring>=24.0",
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: X11 Applications",
+    "Environment :: Win32 (MS Windows)",
+    "Environment :: MacOS X",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Multimedia :: Graphics :: Capture :: Scanners",
+    "Topic :: Office/Business :: Word Processors",
+    "Topic :: Text Processing :: Linguistic",
+]
+[project.scripts]
+likhit = "main:main"
+
+[project.urls]
+Homepage = "https://github.com/Kanak234/likhit"
+Repository = "https://github.com/Kanak234/likhit"
+Issues = "https://github.com/Kanak234/likhit/issues"
+
+# WHY: main.py is a top-level module; without py-modules the "likhit = main:main" entry point
+#      would fail with ModuleNotFoundError after pip install.
+[tool.setuptools]
+py-modules = ["main"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["likhit*"]
+
+[tool.setuptools.package-data]
+"*" = ["assets/**/*"]

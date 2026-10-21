@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  AppStream metainfo for Likhit.
+  App ID: io.github.Kanak234.Likhit (Flathub requires io.github.<user>.<app> for GitHub-hosted apps).
+  Project license: GPL-3.0-or-later (see LICENSE file in repo root).
+  Metadata license: CC0-1.0 (standard for AppStream metadata).
+-->
+<component type="desktop-application">
+  <id>io.github.Kanak234.Likhit</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <name>Likhit</name>
+  <summary>Turn handwritten pages into a Word document</summary>
+  <developer id="io.github.Kanak234">
+    <name>Kanak Prabhakar</name>
+    <url>https://github.com/Kanak234</url>
+  </developer>
+  <description>
+    <p>Likhit converts photos of handwritten pages (or scanned PDFs) into an editable Word (.docx) document.</p>
+    <p>It offers three reading modes and picks the best one available automatically:</p>
+    <ul>
+      <li>Cloud AI – uses an API key (OpenAI, Anthropic Claude, Google Gemini, or any OpenAI-compatible service) for highest accuracy.</li>
+      <li>Local LLM – runs a vision model (e.g., qwen2.5vl) on your own machine via Ollama or LM Studio. Nothing leaves your computer; no internet required.</li>
+      <li>Without AI (offline OCR) – falls back to Tesseract OCR. Fully offline, fast, but optimized for printed text.</li>
+    </ul>
+    <p>You can also force a specific mode from the "Read with" menu.</p>
+    <p>Privacy: In Local LLM and Offline modes, Likhit works fully offline. No handwriting images or text ever leave your machine. Cloud mode sends images to your chosen API provider only when you explicitly provide a key and select that mode.</p>
+    <p>Features: real Word headings, bullet lists, paragraph rejoining, yellow highlight for unclear words ([?]), optional original photo under each page, page breaks, KP logo watermark in document header.</p>
+  </description>
+  <launchable type="desktop-id">io.github.Kanak234.Likhit.desktop</launchable>
+  <url type="homepage">https://github.com/Kanak234/likhit</url>
+  <url type="bugtracker">https://github.com/Kanak234/likhit/issues</url>
+  <content_rating type="oars-1.1" />
+  <releases>
+    <release version="1.1.0" date="2026-10-21">
+      <description>
+        <p>Fixes from code review. No user-facing behavior changes.</p>
+        <ul>
+          <li>Auto mode now falls back per page: a saved API key with no internet used to fail every page; now the local model or Tesseract takes over, and you're told once.</li>
+          <li>Offline OCR no longer erases pages with little writing. Auto-contrast used to clip the darkest 2% of pixels, which on a sparse page was the ink itself.</li>
+          <li>A server answering with non-JSON (another program on the Ollama/LM Studio port) is treated as "not available" instead of crashing.</li>
+          <li>Dropped connections give a clear message instead of a traceback.</li>
+          <li>LM Studio: embedding and text-only models are no longer picked. Newer LM Studio reports vision models; Likhit now uses that.</li>
+          <li>Tesseract errors (e.g., missing Hindi data) give a clear message in terminal mode too.</li>
+          <li>Detecting local models is much faster when many are installed (checks run in parallel).</li>
+          <li>Large PDFs no longer load every page into memory at once (lazy rendering).</li>
+          <li>### and deeper headings become real Word headings.</li>
+          <li>Empty pages and failed pages show a small grey note in the Word file instead of disappearing.</li>
+          <li>Terminal mode doesn't write an empty Word file when every page fails.</li>
+          <li>API key stored in system password store (keyring) when available. Existing keys migrate automatically.</li>
+        </ul>
+      </description>
+    </release>
+  </releases>
+  <screenshots>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/Kanak234/likhit/main/assets/screenshots/main-window.png</image>
+      <caption>Start screen: add photos or PDFs of handwritten pages</caption>
+    </screenshot>
+    <screenshot type="default">
+      <image>https://raw.githubusercontent.com/Kanak234/likhit/main/assets/screenshots/reading.png</image>
+      <caption>A handwritten page next to its recognized text, ready to save as Word</caption>
+    </screenshot>
+  </screenshots>
+  <provides>
+    <binary>likhit</binary>
+  </provides>
+</component>

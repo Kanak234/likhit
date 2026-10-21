@@ -107,7 +107,10 @@ class LikhitApp:
         self.root.geometry("1180x720")
         self.root.minsize(900, 560)
         self.root.configure(bg=PAPER)
-        icon = ASSETS / "logo-light-bg-256.png"
+        # Window icon: use the new app icon (assets/icon/likhit-icon-256.png),
+        # NOT the KP watermark logo (assets/logo-*). The watermark stays in the header
+        # and document header as the developer's branding.
+        icon = ASSETS / "icon" / "likhit-icon-256.png"
         if icon.exists():
             self._icon = tk.PhotoImage(file=str(icon))
             self.root.iconphoto(True, self._icon)

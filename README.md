@@ -123,4 +123,10 @@ tests/               automated tests
 
 ---
 
+## License
+
+GPL-3.0-or-later — see [LICENSE](LICENSE). Copyright (c) 2026 Kanak Prabhakar.
+
+---
+
 Made by **Kanak Prabhakar** · [kanakprabhakar.online](https://kanakprabhakar.online) · GitHub [@Kanak234](https://github.com/Kanak234)

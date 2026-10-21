@@ -1,0 +1,111 @@
+# Flatpak manifest for Likhit
+# Runtime: org.freedesktop.Platform 25.08 (current stable as of 2026)
+# Python dependencies are in python-deps.json (generated with flatpak-pip-generator)
+# Tesseract is built from source with English traineddata
+# App ID: io.github.Kanak234.Likhit (Flathub requires io.github.<user>.<app> for GitHub-hosted apps)
+
+id: io.github.Kanak234.Likhit
+runtime: org.freedesktop.Platform
+runtime-version: '25.08'
+sdk: org.freedesktop.Sdk
+command: likhit
+finish-args:
+  # IPC sharing needed for X11/Wayland display
+  - --share=ipc
+  # X11 socket for Tkinter display (fallback-x11 allows Wayland too)
+  - --socket=fallback-x11
+  # Wayland socket for native Wayland display
+  - --socket=wayland
+  # Network access for Cloud AI and Local LLM (Ollama/LM Studio) modes
+  - --share=network
+  # Filesystem access: home directory for user's photos/PDFs and output .docx files.
+  # Using --filesystem=home instead of xdg-documents+xdg-download because:
+  # 1. Users may store handwritten notes anywhere in home (Pictures, Documents, custom folders)
+  # 2. The app's file dialog needs to browse the full home directory
+  # 3. Output .docx can be saved anywhere the user chooses
+  - --filesystem=home
+  # D-Bus access for keyring (secret service) - needed for API key storage
+  - --talk-name=org.freedesktop.secrets
+  # Desktop notifications (optional, for future use)
+  - --talk-name=org.freedesktop.Notifications
+
+cleanup:
+  - /include
+  - /lib/pkgconfig
+  - /man
+  - /share/doc
+  - /share/gtk-doc
+  - /share/man
+  - /share/pkgconfig
+  - '*.la'
+  - '*.a'
+
+modules:
+  # Python dependencies (generated with flatpak-pip-generator)
+  - python-deps.json
+
+  # Leptonica - required by Tesseract
+  - name: leptonica
+    buildsystem: cmake
+    builddir: true
+    config-opts:
+      - -DCMAKE_INSTALL_PREFIX=/app
+      - -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+    sources:
+      - type: archive
+        url: https://github.com/DanBloomberg/leptonica/releases/download/1.84.1/leptonica-1.84.1.tar.gz
+        sha256: 2b3e1254b1cca381e77c819b59ca99774ff43530209b9aeb511e1d46588a64f6
+        strip-components: 1
+    build-commands:
+      - cmake --install . --prefix=${FLATPAK_DEST}
+
+  # Tesseract OCR built from source with English traineddata
+  # This provides the "offline" OCR mode without AI
+  - name: tesseract
+    buildsystem: cmake
+    builddir: true
+    config-opts:
+      - -DCMAKE_INSTALL_PREFIX=/app
+      - -DBUILD_TRAINING_TOOLS=OFF
+      - -DBUILD_DOCS=OFF
+    sources:
+      - type: archive
+        url: https://github.com/tesseract-ocr/tesseract/archive/refs/tags/5.5.0.tar.gz
+        sha256: f2fb34ca035b6d087a42875a35a7a5c4155fa9979c6132365b1e5a28ebc3fc11
+        strip-components: 1
+      - type: file
+        url: https://github.com/tesseract-ocr/tessdata_fast/raw/main/eng.traineddata
+        sha256: 7d4322bd2a7749724879683fc3912cb542f19906c83bcc1a52132556427170b2
+        dest-filename: eng.traineddata
+      - type: file
+        url: https://github.com/tesseract-ocr/tessdata_fast/raw/main/osd.traineddata
+        sha256: 9cf5d576fcc47564f11265841e5ca839001e7e6f38ff7f7aacf46d15a96b00ff
+        dest-filename: osd.traineddata
+    # Build tesseract-ocr and install English traineddata
+    build-commands:
+      - cmake --install . --prefix=${FLATPAK_DEST}
+      - mkdir -p ${FLATPAK_DEST}/share/tessdata
+      - install -Dm644 ../eng.traineddata ${FLATPAK_DEST}/share/tessdata/eng.traineddata
+      - install -Dm644 ../osd.traineddata ${FLATPAK_DEST}/share/tessdata/osd.traineddata
+
+  # Main Likhit application module
+  - name: likhit
+    buildsystem: simple
+    build-commands:
+      # Install the application
+      - pip3 install --verbose --exists-action=i --no-index --find-links="file://${PWD}" --prefix=${FLATPAK_DEST} "." --no-build-isolation
+      # Install desktop file
+      - install -Dm644 packaging/io.github.Kanak234.Likhit.desktop ${FLATPAK_DEST}/share/applications/io.github.Kanak234.Likhit.desktop
+      # Install metainfo file
+      - install -Dm644 packaging/io.github.Kanak234.Likhit.metainfo.xml ${FLATPAK_DEST}/share/metainfo/io.github.Kanak234.Likhit.metainfo.xml
+      # Install icons (512 PNG and SVG)
+      - install -Dm644 assets/icon/likhit-icon-512.png ${FLATPAK_DEST}/share/icons/hicolor/512x512/apps/io.github.Kanak234.Likhit.png
+      - install -Dm644 assets/icon/likhit-icon.svg ${FLATPAK_DEST}/share/icons/hicolor/scalable/apps/io.github.Kanak234.Likhit.svg
+      # Also install other icon sizes for completeness
+      - install -Dm644 assets/icon/likhit-icon-256.png ${FLATPAK_DEST}/share/icons/hicolor/256x256/apps/io.github.Kanak234.Likhit.png
+      - install -Dm644 assets/icon/likhit-icon-128.png ${FLATPAK_DEST}/share/icons/hicolor/128x128/apps/io.github.Kanak234.Likhit.png
+      - install -Dm644 assets/icon/likhit-icon-64.png ${FLATPAK_DEST}/share/icons/hicolor/64x64/apps/io.github.Kanak234.Likhit.png
+      - install -Dm644 assets/icon/likhit-icon-48.png ${FLATPAK_DEST}/share/icons/hicolor/48x48/apps/io.github.Kanak234.Likhit.png
+    sources:
+      - type: dir
+        path: ../../
