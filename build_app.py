@@ -36,6 +36,12 @@ cmd = [
     # python-docx apne khaali Word templates data files mein rakhta hai;
     # inke bina header/footer banate waqt app crash hota hai
     "--collect-data", "docx",
+    # WHY: new PyMuPDF versions (pymupdf.layout) load ONNX model + YAML files at import time;
+    #      PyInstaller did not bundle them, so the built app crashed with FileNotFoundError
+    #      (.../pymupdf/layout/resources/onnx/layout_rf2.4.1+imf1.yaml).
+    # WHAT: bundle all of pymupdf's data files and submodules into the app.
+    # WHERE: pymupdf -> likhit/imaging.py (PDF pages -> images) inside the frozen app.
+    "--collect-all", "pymupdf",
     "--add-data", f"{KEEP}{sep}docx/parts",
 ]
 if sys.platform.startswith("linux"):
