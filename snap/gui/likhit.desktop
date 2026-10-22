@@ -2,12 +2,12 @@
 # Likhit - handwriting photos/PDFs to Word (.docx)
 # App ID: io.github.Kanak234.Likhit (Flathub requires io.github.<user>.<app> for GitHub-hosted apps)
 # Exec: 'likhit' - the installed binary name in both Snap and Flatpak
-# Icon: io.github.Kanak234.Likhit - matches the installed icon name
+# Icon: snap uses ${SNAP}/meta/gui/likhit.png (snapcraft copies snap/gui there)
 Type=Application
 Name=Likhit
 Comment=Turn handwritten pages into a Word document
 Exec=likhit
-Icon=io.github.Kanak234.Likhit
+Icon=${SNAP}/meta/gui/likhit.png
 Terminal=false
 Categories=Office;Utility;
 Keywords=handwriting;OCR;Word;docx;

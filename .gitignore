@@ -32,5 +32,13 @@ htmlcov/
 # Environment
 .env
 .env.*
-!.env.exampleLikhit.spec
-Likhit.spec
+!.env.example
+
+# Packaging build caches (never commit, never upload to remote-build)
+.flatpak-builder/
+flatpak-build/
+parts/
+stage/
+prime/
+*.snap
+

@@ -1,6 +1,5 @@
 name: likhit
-# Version is set from git tag via adopt-info. See override-build.
-adopt-info: likhit
+title: Likhit
 summary: Turn handwritten pages into a Word document
 description: |
   Likhit converts photos of handwritten pages (or scanned PDFs) into an editable Word (.docx) document.
@@ -15,68 +14,46 @@ description: |
   Privacy: In Local LLM and Offline modes, Likhit works fully offline. No handwriting images or text ever leave your machine. Cloud mode sends images to your chosen API provider only when you explicitly provide a key and select that mode.
 
   Features: real Word headings, bullet lists, paragraph rejoining, yellow highlight for unclear words ([?]), optional original photo under each page, page breaks, KP logo watermark in document header.
-
 license: GPL-3.0-or-later
+contact: kanakprabhakar72@gmail.com
+website: https://github.com/Kanak234/likhit
+source-code: https://github.com/Kanak234/likhit
+issues: https://github.com/Kanak234/likhit/issues
+icon: snap/gui/likhit.png
+
 base: core24
 confinement: strict
 grade: stable
+# WHY: version comes from pyproject.toml, so the snap and the app never disagree
+#      (git describe gave things like "1.1.0-2-g4b5be0b-dirty").
+adopt-info: app
 
-# The app uses the GNOME extension for GTK theme integration and proper
-# desktop integration. This also helps with Tkinter display on Wayland/X11.
-# Architecture: run on amd64 and arm64. core24 uses "platforms:" not "architectures:".
+# WHY: amd64 only for the first release. arm64 can be added later once amd64 is live.
 platforms:
   amd64:
-  arm64:
 
-# Python 3.12 is the default on core24. We use the python plugin to install
-# dependencies from pyproject.toml and bundle the app.
 parts:
+  # Python deps (python-docx, Pillow, pytesseract, PyMuPDF, keyring) from pyproject.toml,
+  # plus the runtime programs the app calls: Tk for the window, Tesseract for offline OCR.
   likhit:
     plugin: python
     source: .
-    # Use pyproject.toml for dependencies and entry point
-    # The python plugin reads [project.scripts] likhit = "main:main"
-    # stage-packages: only runtime dependencies (no -dev packages)
     stage-packages:
+      # WHAT: tkinter/ + _tkinter.so for python 3.12 (core24's python has no Tk).
+      # WHERE: lands in $SNAP/usr/lib/python3.12 -> added to PYTHONPATH in apps.likhit.
       - python3-tk
+      # WHAT: offline OCR engine + English model. pytesseract runs the "tesseract" binary.
       - tesseract-ocr
       - tesseract-ocr-eng
-      # PyMuPDF (fitz) runtime dependencies
-      - libmupdf
-      - libfreetype6
-      - libjpeg-turbo8
-      - libpng16-16
-      - libtiff6
-      - zlib1g
-    # Build packages for compiling any C extensions (includes -dev packages)
+    # NOTE: no libmupdf here. The PyMuPDF wheel bundles MuPDF, and Ubuntu 24.04 has no
+    #       "libmupdf" runtime package (that line made the build fail).
     build-packages:
       - python3-dev
-      - pkg-config
-      - libmupdf-dev
-      - libfreetype6-dev
-      - libjpeg-dev
-      - libpng-dev
-      - libtiff-dev
-      - zlib1g-dev
-    # Override build to set version from git tag (strip leading 'v')
-    override-build: |
-      craftctl default
-      # Set version from latest git tag if building in a git repo
-      if [ -d .git ]; then
-        VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "1.1.0")
-        # Strip leading 'v' from tag (e.g., v1.1.0 -> 1.1.0)
-        VERSION=${VERSION#v}
-        craftctl set version="$VERSION"
-      fi
-    # Ensure the entry point is executable
-    override-prime: |
-      craftctl default
 
-# Icon and desktop file for the store
+  # WHY: ship the real source tree (main.py + likhit/ + assets/) so paths resolve like in the repo.
+  # WHAT: copy only what the app needs into $SNAP/app.
+  # WHERE: used by apps.likhit.command below.
   app:
-    # WHY: ship the real source tree (main.py + likhit/ + assets/) so paths resolve like in the repo.
-    # WHAT: copy only what the app needs into $SNAP/app.
-    # WHERE: used by apps.likhit.command above.
     plugin: dump
     source: .
     organize:
@@ -87,39 +64,33 @@ parts:
       - app/main.py
       - app/likhit
       - app/assets
+      - -app/likhit/**/__pycache__
+    override-pull: |
+      craftctl default
+      # WHERE: read version = "x.y.z" from pyproject.toml -> snap version
+      VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' pyproject.toml | head -1)
+      craftctl set version="${VERSION:-1.1.0}"
 
 apps:
   likhit:
     # WHY: likhit/docx_writer.py finds assets at <repo>/assets (parent of the package).
     #      A pip-installed copy lives in site-packages where no assets/ exists, so the KP
     #      watermark and icons would be missing. We run the app from the dumped source tree.
-    # WHAT: python from the python-plugin venv + main.py from $SNAP/app.
-    # WHERE: $SNAP/app/main.py -> likhit package in $SNAP/app -> $SNAP/app/assets.
     command: bin/python3 $SNAP/app/main.py
-    # WHY: snapcraft only allows "extensions" per app (top-level gave "extra inputs are not permitted").
     # WHAT: gnome extension = GTK/desktop libs, fonts, themes, display access for the Tk window.
-    # WHERE: applies to this app's runtime environment.
     extensions: [gnome]
-    # The gnome extension provides desktop, wayland, x11, and other common plugs.
-    # We add additional plugs for the app's specific needs:
-    plugs:
-      - home              # Access to user's home directory for loading/saving files
-      - removable-media   # Access to USB drives, SD cards for photos
-      - network           # Required for Cloud AI and Local LLM (Ollama/LM Studio) modes
-      - desktop           # Desktop integration (file dialogs, etc.)
-      - desktop-legacy    # Legacy desktop access for file pickers
-    # Environment variables for proper operation
-    environment:
-      # Ensure Tesseract finds its language data (Ubuntu 24.04 tesseract 5 path)
-      TESSDATA_PREFIX: $SNAP/usr/share/tesseract-ocr/5/tessdata
-      # Allow the app to find the bundled Python packages
-      PYTHONPATH: $SNAP/lib/python3.12/site-packages:$PYTHONPATH
-    # Common IDs for desktop integration
     common-id: io.github.Kanak234.Likhit
-    # Desktop file and icon are provided by the gnome extension from snap/gui/
-    # The gnome extension automatically uses snap/gui/likhit.desktop and snap/gui/likhit.png
-    # if they exist and match the app name.
-
-# The gnome extension will automatically install the desktop file and icon from snap/gui/
-# provided they are named after the app (likhit.desktop, likhit.png).
-# Our files are already in place.
+    plugs:
+      - home              # open photos / save .docx in the user's home folder
+      - removable-media   # photos on USB drives and SD cards
+      - network           # Cloud AI and Local LLM (Ollama / LM Studio on localhost) modes
+    environment:
+      # WHAT: Tesseract 5 language data (Ubuntu 24.04 path).
+      TESSDATA_PREFIX: $SNAP/usr/share/tesseract-ocr/5/tessdata
+      # WHAT: tkinter + _tkinter staged from python3-tk, the app source, and venv packages.
+      PYTHONPATH: $SNAP/app:$SNAP/usr/lib/python3.12:$SNAP/usr/lib/python3.12/lib-dynload:$SNAP/lib/python3.12/site-packages
+      # WHAT: Tcl/Tk script libraries (Tk will not start without them).
+      TCL_LIBRARY: $SNAP/usr/share/tcltk/tcl8.6
+      TK_LIBRARY: $SNAP/usr/share/tcltk/tk8.6
+      # WHAT: staged shared libs (libtk, libtcl, tesseract, leptonica).
+      LD_LIBRARY_PATH: $SNAP/usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR:$SNAP/usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/blas:$SNAP/usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/lapack:${LD_LIBRARY_PATH}
