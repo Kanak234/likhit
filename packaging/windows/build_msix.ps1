@@ -39,7 +39,6 @@ python -c "import docx;t=' '.join(p.text for p in docx.Document('smoke.docx').pa
 Copy-Item -Recurse dist\Likhit "$layout\Likhit"
 (Get-Content packaging\windows\AppxManifest.xml -Raw).Replace("__VERSION__", "$ver.0") | Set-Content "$layout\AppxManifest.xml" -Encoding utf8
 $makeappx = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\makeappx.exe" | Sort-Object FullName -Descending | Select-Object -First 1
-& $makeappx.FullName pack /d $layout /p "dist\Likhit-$ver.msix" /o
-if ($LASTEXITCODE -ne 0) { throw "makeappx failed" }
+Run "makeappx pack" { & $makeappx.FullName pack /v /d $layout /p "dist\Likhit-$ver.msix" /o }
 Compress-Archive -Path dist\Likhit -DestinationPath "dist\Likhit-$ver-portable.zip" -Force
 Get-ChildItem dist\*.msix, dist\*.zip | ForEach-Object { "{0}  {1:N1} MB" -f $_.Name, ($_.Length / 1MB) }
