@@ -38,6 +38,11 @@ if ($p.ExitCode -ne 0 -or -not (Test-Path smoke.docx)) { Get-Content "$HOME\likh
 python -c "import docx;t=' '.join(p.text for p in docx.Document('smoke.docx').paragraphs);print('OCR text:',t);assert 'LIKHIT' in t.upper()"; Check "OCR result check"
 Copy-Item -Recurse dist\Likhit "$layout\Likhit"
 (Get-Content packaging\windows\AppxManifest.xml -Raw).Replace("__VERSION__", "$ver.0") | Set-Content "$layout\AppxManifest.xml" -Encoding utf8
+# MSIX rejects some file names (makeappx error 0x8007007b). Drop NSIS/7z leftovers
+# whose names start with '$', then report any remaining name outside the safe set.
+Get-ChildItem $layout -Recurse -Force | Where-Object { $_.Name -like '$*' } | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+$bad = Get-ChildItem $layout -Recurse -Force | Where-Object { $_.Name -notmatch '^[A-Za-z0-9_.\- ()+~@,=\[\]]+$' -or $_.Name -match '[. ]$' -or $_.Name -match '^(CON|PRN|AUX|NUL|COM\d|LPT\d)(\..*)?$' }
+if ($bad) { Write-Host ("::warning title=Unusual file names in package::" + (($bad | ForEach-Object { $_.FullName.Substring($layout.Length) }) -join "%0A")) }
 $makeappx = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\makeappx.exe" | Sort-Object FullName -Descending | Select-Object -First 1
 Run "makeappx pack" { & $makeappx.FullName pack /v /d $layout /p "dist\Likhit-$ver.msix" /o }
 Compress-Archive -Path dist\Likhit -DestinationPath "dist\Likhit-$ver-portable.zip" -Force
