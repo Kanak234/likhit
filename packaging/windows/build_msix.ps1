@@ -40,8 +40,10 @@ Copy-Item -Recurse dist\Likhit "$layout\Likhit"
 (Get-Content packaging\windows\AppxManifest.xml -Raw).Replace("__VERSION__", "$ver.0") | Set-Content "$layout\AppxManifest.xml" -Encoding utf8
 # MSIX rejects some file names (makeappx error 0x8007007b). Drop NSIS/7z leftovers
 # whose names start with '$', then report any remaining name outside the safe set.
-Get-ChildItem $layout -Recurse -Force | Where-Object { $_.Name -like '$*' } | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
-$bad = Get-ChildItem $layout -Recurse -Force | Where-Object { $_.Name -notmatch '^[A-Za-z0-9_.\- ()+~@,=\[\]]+$' -or $_.Name -match '[. ]$' -or $_.Name -match '^(CON|PRN|AUX|NUL|COM\d|LPT\d)(\..*)?$' }
+# '[' and ']' are not allowed in MSIX/OPC part names — 7-Zip leaves "[NSIS].nsi"
+# when it unpacks the Tesseract installer; it is only the installer script.
+Get-ChildItem $layout -Recurse -Force | Where-Object { $_.Name -like '$*' -or $_.Name -match '[\[\]%#]' } | ForEach-Object { Write-Host "removing from package: $($_.FullName)"; Remove-Item -LiteralPath $_.FullName -Recurse -Force -ErrorAction SilentlyContinue }
+$bad = Get-ChildItem $layout -Recurse -Force | Where-Object { $_.Name -notmatch '^[A-Za-z0-9_.\- ()+~@,=]+$' -or $_.Name -match '[. ]$' -or $_.Name -match '^(CON|PRN|AUX|NUL|COM\d|LPT\d)(\..*)?$' }
 if ($bad) { Write-Host ("::warning title=Unusual file names in package::" + (($bad | ForEach-Object { $_.FullName.Substring($layout.Length) }) -join "%0A")) }
 $makeappx = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\makeappx.exe" | Sort-Object FullName -Descending | Select-Object -First 1
 Run "makeappx pack" { & $makeappx.FullName pack /v /d $layout /p "dist\Likhit-$ver.msix" /o }
