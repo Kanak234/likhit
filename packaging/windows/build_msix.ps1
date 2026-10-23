@@ -3,6 +3,21 @@
 # FLOW: icons → build_app.py (PyInstaller one-folder, Tesseract bundled)
 #       → smoke test: Likhit.exe converts a generated image offline → MSIX → zip
 $ErrorActionPreference = "Stop"
+# CI visibility: any failure becomes a GitHub annotation (readable on the run page
+# without signing in), including the last lines of output collected in $global:Tail.
+$global:Tail = New-Object System.Collections.Generic.List[string]
+function Run($step, [scriptblock]$cmd) {
+  Write-Host "::group::$step"
+  & $cmd 2>&1 | ForEach-Object { $l = "$_"; Write-Host $l; $global:Tail.Add($l); if ($global:Tail.Count -gt 25) { $global:Tail.RemoveAt(0) } }
+  $code = $LASTEXITCODE
+  Write-Host "::endgroup::"
+  if ($code -ne 0) { throw "STEP FAILED: $step (exit $code)" }
+}
+trap {
+  $msg = ($_ | Out-String) + "`n--- last output ---`n" + ($global:Tail -join "`n")
+  Write-Host ("::error title=MSIX build failed::" + ($msg -replace "`r?`n", "%0A"))
+  exit 1
+}
 # Identity values are in AppxManifest.xml (copied from Partner Center → Product identity).
 # Native programs (python, makeappx) do not stop the script on failure by
 # themselves — Check stops with the step name so the CI log shows the real cause.
@@ -13,8 +28,8 @@ $ver = (python -c "import likhit;print(likhit.__version__)").Trim()
 $layout = Join-Path $root "dist\msix-layout"
 Remove-Item -Recurse -Force $layout -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force "$layout\Assets" | Out-Null
-python packaging\windows\make_icons.py assets\icon\likhit-icon-512.png "$layout\Assets"; Check "icons"
-python build_app.py; Check "PyInstaller build"
+Run "icons" { python packaging\windows\make_icons.py assets\icon\likhit-icon-512.png "$layout\Assets" }
+Run "PyInstaller build" { python build_app.py }
 if (-not (Test-Path dist\Likhit\Likhit.exe)) { Get-ChildItem dist -Recurse -Depth 1; throw "STEP FAILED: dist\Likhit\Likhit.exe not produced" }
 # real smoke test: printed text image → offline OCR (bundled Tesseract) → .docx
 python -c "from PIL import Image,ImageDraw,ImageFont;i=Image.new('RGB',(900,200),'white');d=ImageDraw.Draw(i);d.text((30,60),'LIKHIT WINDOWS TEST',fill='black',font=ImageFont.load_default(size=56));i.save('smoke.png')"; Check "smoke image"
