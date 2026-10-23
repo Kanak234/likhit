@@ -6,6 +6,8 @@ on:
   workflow_dispatch:
   push:
     tags: ["v*"]
+permissions:
+  contents: write   # lets the job attach the .msix to a GitHub Release
 jobs:
   msix:
     runs-on: windows-latest
@@ -32,3 +34,14 @@ jobs:
             dist/*.msix
             dist/*.zip
             tesseract/MANIFEST.json
+      # The Store upload is done from Partner Center; a public Release asset gives the
+      # browser a direct URL to the exact file CI built and tested.
+      - name: Publish MSIX to GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $f = Get-ChildItem dist/*.msix | Select-Object -First 1
+          $tag = "store-" + ($f.BaseName -replace '^[^-]+-','')
+          gh release view $tag 2>$null; if ($LASTEXITCODE -ne 0) { gh release create $tag --title "Microsoft Store package $tag" --notes "MSIX built and smoke-tested by windows-msix CI." }
+          gh release upload $tag $f.FullName --clobber
