@@ -40,6 +40,12 @@ Copy-Item -Recurse dist\Likhit "$layout\Likhit"
 (Get-Content packaging\windows\AppxManifest.xml -Raw).Replace("__VERSION__", "$ver.0") | Set-Content "$layout\AppxManifest.xml" -Encoding utf8
 # MSIX rejects some file names (makeappx error 0x8007007b). Drop NSIS/7z leftovers
 # whose names start with '$', then report any remaining name outside the safe set.
+# python-docx ships an unpacked copy of its template (default-docx-template/ with
+# _rels/ and [Content_Types].xml). "_rels" is a RESERVED folder name in MSIX/OPC
+# packages (makeappx 0x8007007b). The app only uses templates/default.docx, so the
+# unpacked copy is removed from the package (tests pass without it).
+Get-ChildItem $layout -Recurse -Directory -Force | Where-Object { $_.Name -eq 'default-docx-template' } | Remove-Item -Recurse -Force
+Get-ChildItem $layout -Recurse -Directory -Force | Where-Object { $_.Name -eq '_rels' } | Remove-Item -Recurse -Force
 # '[' and ']' are not allowed in MSIX/OPC part names — 7-Zip leaves "[NSIS].nsi"
 # when it unpacks the Tesseract installer; it is only the installer script.
 Get-ChildItem $layout -Recurse -Force | Where-Object { $_.Name -like '$*' -or $_.Name -match '[\[\]%#]' } | ForEach-Object { Write-Host "removing from package: $($_.FullName)"; Remove-Item -LiteralPath $_.FullName -Recurse -Force -ErrorAction SilentlyContinue }
