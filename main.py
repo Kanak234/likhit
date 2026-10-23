@@ -14,8 +14,18 @@ Flow: GUI -> likhit/ui.py.  CLI -> imaging.load_pages -> engines.choose_engine
 """
 
 import argparse
+import os
 import sys
 from pathlib import Path
+
+# WHY: a PyInstaller --windowed build (Windows Likhit.exe) has NO console, so
+#      sys.stdout / sys.stderr are None and the first print() in CLI mode crashes.
+#      Point them at a log file next to the user's data instead, so CLI mode
+#      (used by the MSIX smoke test and batch conversions) works from the GUI exe.
+if sys.stdout is None or sys.stderr is None:
+    _log = open(os.path.join(os.path.expanduser("~"), "likhit-cli.log"), "a", encoding="utf-8")
+    sys.stdout = sys.stdout or _log
+    sys.stderr = sys.stderr or _log
 
 # Chahe kisi bhi folder se chalao, likhit package mil jaaye
 sys.path.insert(0, str(Path(__file__).resolve().parent))
