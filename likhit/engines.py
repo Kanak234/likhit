@@ -15,6 +15,8 @@ Flow: ui.py / main.py -> choose_engine(settings) -> engine.recognize(image)
 
 import json
 import re
+import os
+import sys
 import shutil
 from concurrent.futures import ThreadPoolExecutor
 import urllib.error
@@ -348,6 +350,14 @@ def find_tesseract(custom_path="") -> str:
     Windows ki common install jagah."""
     if custom_path and shutil.which(custom_path):
         return shutil.which(custom_path)
+    # WHY: the Windows (Microsoft Store) build ships Tesseract inside the app folder
+    #      (packaging/windows/fetch_tesseract.ps1), so "Without AI" mode works offline
+    #      with zero setup. PyInstaller unpacks data next to the exe (sys._MEIPASS).
+    base = getattr(sys, "_MEIPASS", None)
+    if base:
+        bundled = os.path.join(base, "tesseract", "tesseract.exe" if sys.platform.startswith("win") else "tesseract")
+        if os.path.isfile(bundled):
+            return bundled
     found = shutil.which("tesseract")
     if found:
         return found

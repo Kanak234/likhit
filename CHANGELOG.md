@@ -1,6 +1,13 @@
 # Changelog
 
-## Unreleased
+## 1.2.0 (2026-10-23)
+
+**Windows / Microsoft Store**
+- New MSIX build (GitHub Actions, `windows-latest`) with Tesseract OCR bundled, so *Without AI* mode works offline with zero setup.
+- `find_tesseract()` checks the bundled copy first.
+- Same version 1.2.0 on Snap Store and Microsoft Store.
+
+## Unreleased (repo hygiene)
 
 **Repo hygiene**
 - Moved verification artifacts (`HANDOFF.md`, `VERIFY.md`, `docs/chromium/`) into `docs/verification/`

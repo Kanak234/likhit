@@ -44,6 +44,10 @@ cmd = [
     "--collect-all", "pymupdf",
     "--add-data", f"{KEEP}{sep}docx/parts",
 ]
+# Windows Store build: ship Tesseract (downloaded by packaging/windows/fetch_tesseract.ps1)
+# so offline OCR works without the student installing anything.
+if (ROOT / "tesseract").is_dir():
+    cmd += ["--add-data", f"{ROOT / 'tesseract'}{sep}tesseract"]
 if sys.platform.startswith("linux"):
     cmd.append("--onefile")
 subprocess.check_call(cmd)
