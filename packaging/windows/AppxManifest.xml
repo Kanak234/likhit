@@ -2,22 +2,21 @@
 <!--
   Likhit — MSIX manifest (Microsoft Store, free Individual developer account).
   WHAT: describes the packaged Win32 app (MEDHA.exe) to Windows and the Store.
-  WHY placeholders: Identity Name / Publisher / PublisherDisplayName MUST be copied
-       from Partner Center → your app → Product identity. Wrong values = Store rejects
-       the upload, so they are never guessed. build_msix.ps1 replaces __VERSION__.
+  Identity values copied from Partner Center → Product identity (23 Oct 2026).
+       They are public (every installed MSIX shows them), so they live in the repo. build_msix.ps1 replaces __VERSION__.
   runFullTrust: required for a Win32 desktop app. internetClient is NOT requested: Win32 full-trust apps already reach the network (Cloud AI mode).
 -->
 <Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
          xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
          xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
          IgnorableNamespaces="uap rescap">
-  <Identity Name="__PARTNER_CENTER_IDENTITY_NAME__"
-            Publisher="__PARTNER_CENTER_PUBLISHER_CN__"
+  <Identity Name="KanakPrabhakar.Likhit"
+            Publisher="CN=D47E0796-ADF8-4726-BE39-DCBB2D6B664D"
             Version="__VERSION__"
             ProcessorArchitecture="x64" />
   <Properties>
     <DisplayName>Likhit</DisplayName>
-    <PublisherDisplayName>__PUBLISHER_DISPLAY_NAME__</PublisherDisplayName>
+    <PublisherDisplayName>KanakPrabhakar</PublisherDisplayName>
     <Logo>Assets\StoreLogo.png</Logo>
   </Properties>
   <Dependencies>

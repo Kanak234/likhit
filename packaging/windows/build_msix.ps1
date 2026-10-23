@@ -3,11 +3,7 @@
 # FLOW: icons → build_app.py (PyInstaller one-folder, Tesseract bundled)
 #       → smoke test: Likhit.exe converts a generated image offline → MSIX → zip
 $ErrorActionPreference = "Stop"
-# Partner Center → Product identity values come from GitHub repo variables
-# (MSIX_IDENTITY_NAME, MSIX_PUBLISHER, MSIX_PUBLISHER_DISPLAY) — never guessed.
-foreach ($v in "MSIX_IDENTITY_NAME","MSIX_PUBLISHER","MSIX_PUBLISHER_DISPLAY") {
-  if (-not (Get-Item "env:$v" -ErrorAction SilentlyContinue)) { throw "Set repo variable $v (Partner Center → Product identity)" }
-}
+# Identity values are in AppxManifest.xml (copied from Partner Center → Product identity).
 # Native programs (python, makeappx) do not stop the script on failure by
 # themselves — Check stops with the step name so the CI log shows the real cause.
 function Check($step) { if ($LASTEXITCODE -ne 0) { throw "STEP FAILED: $step (exit $LASTEXITCODE)" } }
@@ -26,7 +22,7 @@ $p = Start-Process -FilePath dist\Likhit\Likhit.exe -ArgumentList "smoke.png","-
 if ($p.ExitCode -ne 0 -or -not (Test-Path smoke.docx)) { Get-Content "$HOME\likhit-cli.log" -Tail 40 -ErrorAction SilentlyContinue; throw "Likhit.exe offline conversion failed (exit $($p.ExitCode))" }
 python -c "import docx;t=' '.join(p.text for p in docx.Document('smoke.docx').paragraphs);print('OCR text:',t);assert 'LIKHIT' in t.upper()"; Check "OCR result check"
 Copy-Item -Recurse dist\Likhit "$layout\Likhit"
-(Get-Content packaging\windows\AppxManifest.xml -Raw).Replace("__VERSION__", "$ver.0").Replace("__PARTNER_CENTER_IDENTITY_NAME__", $env:MSIX_IDENTITY_NAME).Replace("__PARTNER_CENTER_PUBLISHER_CN__", $env:MSIX_PUBLISHER).Replace("__PUBLISHER_DISPLAY_NAME__", $env:MSIX_PUBLISHER_DISPLAY) | Set-Content "$layout\AppxManifest.xml" -Encoding utf8
+(Get-Content packaging\windows\AppxManifest.xml -Raw).Replace("__VERSION__", "$ver.0") | Set-Content "$layout\AppxManifest.xml" -Encoding utf8
 $makeappx = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\makeappx.exe" | Sort-Object FullName -Descending | Select-Object -First 1
 & $makeappx.FullName pack /d $layout /p "dist\Likhit-$ver.msix" /o
 if ($LASTEXITCODE -ne 0) { throw "makeappx failed" }
