@@ -46,6 +46,30 @@ Get-ChildItem $layout -Recurse -Force | Where-Object { $_.Name -like '$*' -or $_
 $bad = Get-ChildItem $layout -Recurse -Force | Where-Object { $_.Name -notmatch '^[A-Za-z0-9_.\- ()+~@,=]+$' -or $_.Name -match '[. ]$' -or $_.Name -match '^(CON|PRN|AUX|NUL|COM\d|LPT\d)(\..*)?$' }
 if ($bad) { Write-Host ("::warning title=Unusual file names in package::" + (($bad | ForEach-Object { $_.FullName.Substring($layout.Length) }) -join "%0A")) }
 $makeappx = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\makeappx.exe" | Sort-Object FullName -Descending | Select-Object -First 1
-Run "makeappx pack" { & $makeappx.FullName pack /v /d $layout /p "dist\Likhit-$ver.msix" /o }
+& $makeappx.FullName pack /d $layout /p "dist\Likhit-$ver.msix" /o | Out-Null
+if ($LASTEXITCODE -ne 0) {
+  # Diagnose: pack each folder of the app separately to find the one makeappx rejects.
+  $bad = @()
+  $dirs = @(Get-ChildItem "$layout\Likhit" -Directory) + @(Get-ChildItem "$layout\Likhit\_internal" -Directory)
+  foreach ($d in $dirs) {
+    $probe = Join-Path $env:RUNNER_TEMP ("probe-" + $d.Name); Remove-Item -Recurse -Force $probe -ErrorAction SilentlyContinue
+    New-Item -ItemType Directory -Force $probe | Out-Null
+    Copy-Item "$layout\AppxManifest.xml", "$layout\Assets" $probe -Recurse
+    Copy-Item $d.FullName (Join-Path $probe $d.Name) -Recurse
+    & $makeappx.FullName pack /d $probe /p "$probe.msix" /o /nv 2>&1 | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+      $files = Get-ChildItem $d.FullName -Recurse -File | Select-Object -First 400
+      $badFile = $null
+      foreach ($f in $files) {  # narrow to the first single file that fails
+        $p2 = "$probe-f"; Remove-Item -Recurse -Force $p2 -ErrorAction SilentlyContinue; New-Item -ItemType Directory -Force $p2 | Out-Null
+        Copy-Item "$layout\AppxManifest.xml", "$layout\Assets" $p2 -Recurse; Copy-Item $f.FullName $p2
+        & $makeappx.FullName pack /d $p2 /p "$p2.msix" /o /nv 2>&1 | Out-Null
+        if ($LASTEXITCODE -ne 0) { $badFile = $f.FullName.Substring($layout.Length); break }
+      }
+      $bad += "$($d.FullName.Substring($layout.Length))  first bad file: $badFile"
+    }
+  }
+  throw ("makeappx rejected these folders:`n" + ($bad -join "`n"))
+}
 Compress-Archive -Path dist\Likhit -DestinationPath "dist\Likhit-$ver-portable.zip" -Force
 Get-ChildItem dist\*.msix, dist\*.zip | ForEach-Object { "{0}  {1:N1} MB" -f $_.Name, ($_.Length / 1MB) }
